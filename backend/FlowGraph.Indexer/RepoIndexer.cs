@@ -225,17 +225,17 @@ public sealed class RepoIndexer(
             return string.Empty;
         }
 
-        var normalized = id.Trim().Replace("global::", string.Empty, StringComparison.Ordinal);
-        normalized = RemoveDelimitedSegments(normalized, '<', '>');
-        normalized = RemoveDelimitedSegments(normalized, '(', ')');
+        var candidate = id.Trim().Replace("global::", string.Empty, StringComparison.Ordinal);
+        candidate = RemoveDelimitedSegments(candidate, '<', '>');
+        candidate = RemoveDelimitedSegments(candidate, '(', ')');
 
-        var dotIndex = normalized.LastIndexOf('.');
-        var plusIndex = normalized.LastIndexOf('+');
-        var segmentStart = Math.Max(dotIndex, plusIndex);
-        var segment = segmentStart >= 0 ? normalized[(segmentStart + 1)..] : normalized;
+        var dotIndex = candidate.LastIndexOf('.');
+        var plusIndex = candidate.LastIndexOf('+');
+        var lastSeparatorIndex = Math.Max(dotIndex, plusIndex);
+        var segment = lastSeparatorIndex >= 0 ? candidate[(lastSeparatorIndex + 1)..] : candidate;
 
-        var tokens = segment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return tokens.Length > 0 ? tokens[^1] : string.Empty;
+        var lastWhitespaceIndex = segment.LastIndexOfAny([' ', '\t', '\r', '\n']);
+        return (lastWhitespaceIndex >= 0 ? segment[(lastWhitespaceIndex + 1)..] : segment).Trim();
     }
 
     private static string RemoveDelimitedSegments(string input, char open, char close)
