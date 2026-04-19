@@ -1,19 +1,24 @@
+using Microsoft.Extensions.Logging;
+
 namespace FlowGraph.Blobs;
 
-public sealed class FileSystemBlobStore(string rootPath) : IBlobStore
+public sealed class FileSystemBlobStore(string rootPath, ILogger<FileSystemBlobStore> logger) : IBlobStore
 {
     public async Task WriteAsync(string relativePath, Stream content, CancellationToken cancellationToken)
     {
         var fullPath = GetFullPath(relativePath);
+        logger.LogDebug("Writing blob at {RelativePath}.", relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
 
         await using var file = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
         await content.CopyToAsync(file, cancellationToken);
+        logger.LogInformation("Blob written at {RelativePath}.", relativePath);
     }
 
     public Task<Stream> ReadAsync(string relativePath, CancellationToken cancellationToken)
     {
         _ = cancellationToken;
+        logger.LogDebug("Reading blob at {RelativePath}.", relativePath);
         var fullPath = GetFullPath(relativePath);
         Stream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         return Task.FromResult(stream);
@@ -22,7 +27,9 @@ public sealed class FileSystemBlobStore(string rootPath) : IBlobStore
     public Task<bool> ExistsAsync(string relativePath, CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        return Task.FromResult(File.Exists(GetFullPath(relativePath)));
+        var exists = File.Exists(GetFullPath(relativePath));
+        logger.LogDebug("Blob existence check at {RelativePath}: {Exists}.", relativePath, exists);
+        return Task.FromResult(exists);
     }
 
     public Task DeleteAsync(string relativePath, CancellationToken cancellationToken)
@@ -32,6 +39,7 @@ public sealed class FileSystemBlobStore(string rootPath) : IBlobStore
         if (File.Exists(fullPath))
         {
             File.Delete(fullPath);
+            logger.LogInformation("Blob deleted at {RelativePath}.", relativePath);
         }
 
         return Task.CompletedTask;
@@ -47,4 +55,3 @@ public sealed class FileSystemBlobStore(string rootPath) : IBlobStore
         return Path.GetFullPath(Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
     }
 }
-

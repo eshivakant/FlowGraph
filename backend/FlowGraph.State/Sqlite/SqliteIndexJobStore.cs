@@ -1,11 +1,13 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace FlowGraph.State.Sqlite;
 
-public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactory) : IIndexJobStore
+public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactory, ILogger<SqliteIndexJobStore> logger) : IIndexJobStore
 {
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
+        logger.LogInformation("Initializing job store.");
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
         await SqliteMigrations.EnsureCreatedAsync(conn, cancellationToken);
@@ -13,6 +15,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
 
     public async Task<IndexingJob> CreateJobAsync(string repoName, DateTimeOffset startedAt, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Creating indexing job for repo {RepoName}.", repoName);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -29,19 +32,21 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
         var idObj = await cmd.ExecuteScalarAsync(cancellationToken);
         var id = Convert.ToInt64(idObj);
 
-        return new IndexingJob(
+        var job = new IndexingJob(
             id,
             repoName,
             "RUNNING",
             StatusMessage: null,
             startedAt,
             CompletedAt: null,
-            ChangedFilesCount: 0
-        );
+            ChangedFilesCount: 0);
+        logger.LogInformation("Created indexing job {JobId} for repo {RepoName}.", id, repoName);
+        return job;
     }
 
     public async Task UpdateJobProgressAsync(long jobId, string statusMessage, CancellationToken cancellationToken)
     {
+        logger.LogDebug("Updating progress for job {JobId}.", jobId);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -58,6 +63,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
 
     public async Task CompleteJobAsync(long jobId, DateTimeOffset completedAt, int changedFilesCount, string status, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Completing job {JobId} with status {Status}.", jobId, status);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -80,6 +86,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
 
     public async Task FailJobAsync(long jobId, DateTimeOffset completedAt, string error, CancellationToken cancellationToken)
     {
+        logger.LogWarning("Failing job {JobId}.", jobId);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -100,6 +107,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
 
     public async Task<IReadOnlyList<IndexingJob>> ListJobsAsync(int take, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Listing jobs with take={Take}.", take);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -126,11 +134,13 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
             results.Add(new IndexingJob(id, repo, status, statusMessage, startedAt, completedAt, changedFiles));
         }
 
+        logger.LogInformation("Listed {Count} jobs.", results.Count);
         return results;
     }
 
     public async Task<IndexingJob?> GetJobAsync(long jobId, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Getting job {JobId}.", jobId);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -146,6 +156,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
+            logger.LogWarning("Job {JobId} not found.", jobId);
             return null;
         }
 
@@ -156,11 +167,14 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
         var startedAt = DateTimeOffset.Parse(reader.GetString(4));
         DateTimeOffset? completedAt = reader.IsDBNull(5) ? null : DateTimeOffset.Parse(reader.GetString(5));
         var changedFiles = reader.GetInt32(6);
-        return new IndexingJob(id, repo, status, statusMessage, startedAt, completedAt, changedFiles);
+        var job = new IndexingJob(id, repo, status, statusMessage, startedAt, completedAt, changedFiles);
+        logger.LogInformation("Retrieved job {JobId} with status {Status}.", jobId, status);
+        return job;
     }
 
     public async Task DeleteJobsForRepoAsync(string repoName, CancellationToken cancellationToken)
     {
+        logger.LogWarning("Deleting jobs for repo {RepoName}.", repoName);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -170,4 +184,3 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 }
-

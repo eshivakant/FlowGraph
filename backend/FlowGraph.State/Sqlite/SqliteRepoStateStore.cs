@@ -1,12 +1,14 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace FlowGraph.State.Sqlite;
 
-public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFactory) : IRepoStateStore
+public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFactory, ILogger<SqliteRepoStateStore> logger) : IRepoStateStore
 {
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
+        logger.LogInformation("Initializing repo state store.");
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
         await SqliteMigrations.EnsureCreatedAsync(conn, cancellationToken);
@@ -14,6 +16,7 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
 
     public async Task<IReadOnlyList<RepoState>> ListReposAsync(CancellationToken cancellationToken)
     {
+        logger.LogInformation("Listing repositories from state store.");
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -41,11 +44,13 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
             results.Add(new RepoState(repo, remoteUrl, branch, solPath, lastCommit, lastAt, status, includes));
         }
 
+        logger.LogInformation("Listed {Count} repositories from state store.", results.Count);
         return results;
     }
 
     public async Task<RepoState?> GetRepoAsync(string repoName, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Getting repository state for {RepoName}.", repoName);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -61,6 +66,7 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
+            logger.LogWarning("Repository state not found for {RepoName}.", repoName);
             return null;
         }
 
@@ -74,11 +80,14 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         var includesJson = reader.IsDBNull(7) ? null : reader.GetString(7);
         var includes = includesJson is null ? null : JsonSerializer.Deserialize<string[]>(includesJson);
 
-        return new RepoState(repo, remoteUrl, branch, solPath, lastCommit, lastAt, status, includes);
+        var state = new RepoState(repo, remoteUrl, branch, solPath, lastCommit, lastAt, status, includes);
+        logger.LogInformation("Loaded repository state for {RepoName} with status {Status}.", repoName, status);
+        return state;
     }
 
     public async Task UpsertRepoAsync(RepoState repo, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Upserting repository state for {RepoName} with status {Status}.", repo.RepoName, repo.Status);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -105,10 +114,12 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         cmd.Parameters.AddWithValue("$include_patterns", repo.IncludePatterns is null ? DBNull.Value : JsonSerializer.Serialize(repo.IncludePatterns));
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);
+        logger.LogInformation("Upserted repository state for {RepoName}.", repo.RepoName);
     }
     
     public async Task DeleteRepoAsync(string repoName, CancellationToken cancellationToken)
     {
+        logger.LogWarning("Deleting repository state for {RepoName}.", repoName);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -116,6 +127,6 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         cmd.CommandText = "DELETE FROM repos WHERE repo_name = $repo";
         cmd.Parameters.AddWithValue("$repo", repoName);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
+        logger.LogWarning("Deleted repository state for {RepoName}.", repoName);
     }
 }
-

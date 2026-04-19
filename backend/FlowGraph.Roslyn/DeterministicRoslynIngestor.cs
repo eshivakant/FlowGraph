@@ -2,6 +2,7 @@ using System.Xml.Linq;
 using System.Text.Json;
 using System.Collections.Immutable;
 using FlowGraph.Graph;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,21 +10,22 @@ using Microsoft.CodeAnalysis.MSBuild;
 
 namespace FlowGraph.Roslyn;
 
-public sealed class DeterministicRoslynIngestor : IRoslynIngestor
+public sealed class DeterministicRoslynIngestor(ILogger<DeterministicRoslynIngestor> logger) : IRoslynIngestor
 {
     public async Task<IReadOnlyList<GraphTriple>> IngestAsync(RoslynIngestionRequest request, Func<string, Task>? progress, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Starting Roslyn ingestion for repo {RepoName} at commit {CommitSha}.", request.RepoName, request.CommitSha);
         using var workspace = MsBuildWorkspaceLoader.CreateWorkspace();
 
         workspace.WorkspaceFailed += (s, e) =>
         {
-            // Report diagnostics to console for now, could be wired to progress if needed.
-            Console.WriteLine($"[Roslyn Diagnostic] {e.Diagnostic.Kind}: {e.Diagnostic.Message}");
+            logger.LogWarning("Roslyn workspace diagnostic {Kind}: {Message}", e.Diagnostic.Kind, e.Diagnostic.Message);
         };
 
         var solutionPath = ResolveSolutionPath(request);
         if (solutionPath is null)
         {
+            logger.LogWarning("No solution file resolved for repo {RepoName}.", request.RepoName);
             return Array.Empty<GraphTriple>();
         }
 
@@ -50,9 +52,9 @@ public sealed class DeterministicRoslynIngestor : IRoslynIngestor
                     {
                         await workspace.OpenProjectAsync(p, cancellationToken: cancellationToken);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-
+                        logger.LogWarning(ex, "Failed to open project {ProjectPath} from .slnx.", p);
                     }
                 }
             }
@@ -162,6 +164,7 @@ public sealed class DeterministicRoslynIngestor : IRoslynIngestor
         }
 
         if (progress != null) await progress($"Roslyn ingestion complete. Found {allTriples.Count} triples across {processedFiles} files.");
+        logger.LogInformation("Roslyn ingestion completed for repo {RepoName}. Processed files: {ProcessedFiles}, triples: {TripleCount}.", request.RepoName, processedFiles, allTriples.Count);
         return allTriples.ToList();
     }
 
@@ -603,4 +606,3 @@ public sealed class DeterministicRoslynIngestor : IRoslynIngestor
                p.Contains("\\test\\");
     }
 }
-
