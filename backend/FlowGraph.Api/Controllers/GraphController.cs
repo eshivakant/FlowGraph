@@ -5,17 +5,30 @@ namespace FlowGraph.Api.Controllers;
 
 [ApiController]
 [Route("graph")]
-public sealed class GraphController(IGraphQueryService graph) : ControllerBase
+public sealed class GraphController(IGraphQueryService graph, ILogger<GraphController> logger) : ControllerBase
 {
     [HttpGet("search")]
     public async Task<ActionResult<IReadOnlyList<GraphEntity>>> Search([FromQuery] string? query, [FromQuery] string[]? repos, [FromQuery] int take = 50, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
+            logger.LogInformation("Search requested with empty query.");
             return Ok(Array.Empty<GraphEntity>());
         }
 
-        return Ok(await graph.SearchAsync(query, repos, Math.Clamp(take, 1, 200), cancellationToken));
+        var boundedTake = Math.Clamp(take, 1, 200);
+        logger.LogInformation("Searching graph with take={Take}.", boundedTake);
+        try
+        {
+            var results = await graph.SearchAsync(query, repos, boundedTake, cancellationToken);
+            logger.LogInformation("Search returned {Count} results.", results.Count);
+            return Ok(results);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Graph search failed.");
+            throw;
+        }
     }
 
     [HttpGet("trace")]
@@ -23,10 +36,23 @@ public sealed class GraphController(IGraphQueryService graph) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(start))
         {
+            logger.LogInformation("Trace requested with empty start node.");
             return Ok(new TraceResult(null, Array.Empty<GraphTriple>()));
         }
 
-        return Ok(await graph.TraceAsync(start, repos, Math.Clamp(maxDepth, 1, 20), cancellationToken));
+        var boundedDepth = Math.Clamp(maxDepth, 1, 20);
+        logger.LogInformation("Tracing graph with maxDepth={MaxDepth}.", boundedDepth);
+        try
+        {
+            var result = await graph.TraceAsync(start, repos, boundedDepth, cancellationToken);
+            logger.LogInformation("Trace completed with {TripleCount} triples.", result.Triples.Count);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Graph trace failed.");
+            throw;
+        }
     }
 
     [HttpGet("impact")]
@@ -34,10 +60,22 @@ public sealed class GraphController(IGraphQueryService graph) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(change))
         {
+            logger.LogInformation("Impact requested with empty change id.");
             return Ok(Array.Empty<GraphEntity>());
         }
 
-        return Ok(await graph.ImpactAsync(change, repos, Math.Clamp(maxDepth, 1, 10), cancellationToken));
+        var boundedDepth = Math.Clamp(maxDepth, 1, 10);
+        logger.LogInformation("Calculating impact with maxDepth={MaxDepth}.", boundedDepth);
+        try
+        {
+            var results = await graph.ImpactAsync(change, repos, boundedDepth, cancellationToken);
+            logger.LogInformation("Impact returned {Count} entities.", results.Count);
+            return Ok(results);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Impact analysis failed.");
+            throw;
+        }
     }
 }
-

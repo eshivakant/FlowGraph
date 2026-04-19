@@ -1,18 +1,23 @@
 using Neo4j.Driver;
+using Microsoft.Extensions.Logging;
 
 namespace FlowGraph.Graph.Neo4j;
 
 public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncDisposable
 {
     private readonly IDriver _driver;
+    private readonly ILogger<Neo4jGraphClient> _logger;
 
-    public Neo4jGraphClient(string uri, string username, string password)
+    public Neo4jGraphClient(string uri, string username, string password, ILogger<Neo4jGraphClient> logger)
     {
+        _logger = logger;
         _driver = GraphDatabase.Driver(uri, AuthTokens.Basic(username, password));
+        _logger.LogInformation("Neo4j graph client initialized.");
     }
 
     public async Task UpsertAsync(string repoName, string commitSha, IReadOnlyList<GraphTriple> triples, Func<string, Task>? progress, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Upserting {TripleCount} triples to Neo4j.", triples.Count);
         if (triples.Count == 0)
         {
             return;
@@ -62,10 +67,13 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
                 if (progress != null) await progress($"Progress: {processed}/{triples.Count} triples written (last batch: {batch.Length} of {rel}).");
             }
         }
+
+        _logger.LogInformation("Neo4j upsert completed.");
     }
 
     public async Task DeleteRepoAsync(string repoName, CancellationToken cancellationToken)
     {
+        _logger.LogWarning("Deleting repository graph data.");
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
 
         bool hasMore = true;
@@ -100,10 +108,12 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
             });
             hasMore = deletedCount > 0;
         }
+        _logger.LogWarning("Finished deleting repository graph data.");
     }
 
     public async Task WipeAsync(CancellationToken cancellationToken)
     {
+        _logger.LogWarning("Wiping all graph data.");
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
 
         bool hasMore = true;
@@ -137,10 +147,12 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
             });
             hasMore = deletedCount > 0;
         }
+        _logger.LogWarning("Completed graph wipe.");
     }
 
     public async Task<IReadOnlyList<GraphEntity>> SearchAsync(string query, string[]? repos, int take, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Running graph search with take={Take}.", take);
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
         var repoList = (repos == null || repos.Length == 0) ? null : repos;
         var cursor = await session.RunAsync(
@@ -165,11 +177,13 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
             list.Add(new GraphEntity(kind, id, props));
         }
 
+        _logger.LogInformation("Graph search returned {Count} results.", list.Count);
         return list;
     }
 
     public async Task<TraceResult> TraceAsync(string startId, string[]? repos, int maxDepth, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Running graph trace with depth {MaxDepth}.", maxDepth);
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
 
         var nodeCursor = await session.RunAsync(
@@ -185,7 +199,11 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
                 nodeCursor.Current["props"].As<Dictionary<string, object?>>());
         }
 
-        if (startNode == null) return new TraceResult(null, Array.Empty<GraphTriple>());
+        if (startNode == null)
+        {
+            _logger.LogWarning("Trace start node not found.");
+            return new TraceResult(null, Array.Empty<GraphTriple>());
+        }
 
         var repoList = (repos == null || repos.Length == 0) ? null : repos;
         var cursor = await session.RunAsync(
@@ -216,11 +234,13 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
             results.Add(new GraphTriple(src, rel, tgt, rp));
         }
 
+        _logger.LogInformation("Trace completed with {Count} triples.", results.Count);
         return new TraceResult(startNode, results);
     }
 
     public async Task<IReadOnlyList<GraphEntity>> ImpactAsync(string changeId, string[]? repos, int maxDepth, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Running impact analysis with depth {MaxDepth}.", maxDepth);
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
         var repoList = (repos == null || repos.Length == 0) ? null : repos;
         var cursor = await session.RunAsync(
@@ -243,10 +263,15 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
             var props = cursor.Current["props"].As<Dictionary<string, object?>>();
             list.Add(new GraphEntity(kind, id, props));
         }
+        _logger.LogInformation("Impact analysis returned {Count} entities.", list.Count);
         return list;
     }
 
-    public async ValueTask DisposeAsync() => await _driver.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        _logger.LogInformation("Disposing Neo4j graph client.");
+        await _driver.DisposeAsync();
+    }
 
     private static string RelationToCypher(GraphRelation relation) =>
         relation switch
