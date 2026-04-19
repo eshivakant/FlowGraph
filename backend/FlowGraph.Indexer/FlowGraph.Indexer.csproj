@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlowGraph.Git\FlowGraph.Git.csproj" />
+    <ProjectReference Include="..\FlowGraph.Roslyn\FlowGraph.Roslyn.csproj" />
+    <ProjectReference Include="..\FlowGraph.Graph\FlowGraph.Graph.csproj" />
+    <ProjectReference Include="..\FlowGraph.State\FlowGraph.State.csproj" />
+    <ProjectReference Include="..\FlowGraph.Blobs\FlowGraph.Blobs.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

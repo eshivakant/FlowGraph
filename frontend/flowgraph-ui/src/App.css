@@ -1,0 +1,280 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  text-align: left;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--text-h);
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tab {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.main {
+  padding: 20px;
+  text-align: left;
+}
+
+.panel h2 {
+  margin: 0 0 6px;
+}
+
+.muted {
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+  max-width: 860px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+input,
+select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  background: transparent;
+  color: var(--text-h);
+}
+
+button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+button.primary {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.danger {
+  color: #e11d48;
+  border-color: rgba(225, 29, 72, 0.3);
+}
+
+button.danger:hover {
+  background: rgba(225, 29, 72, 0.1);
+  border-color: #e11d48;
+}
+
+button.small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.row.spaceBetween {
+  justify-content: space-between;
+}
+
+.grow {
+  flex: 1 1 auto;
+}
+
+.code {
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  overflow: auto;
+  font-size: 13px;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.listItem {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  transition: background-color 0.2s;
+}
+
+.listItem.clickable {
+  cursor: pointer;
+}
+
+.listItem.clickable:hover {
+  background-color: var(--panel-hover);
+}
+
+.listItem:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.status-running {
+  color: #3b82f6;
+  font-weight: 600;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.status-message {
+  color: #10b981;
+  font-style: italic;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+.listTitle {
+  font-family: var(--mono);
+  color: var(--text-h);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.listMeta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.error {
+  color: #e11d48;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.spacer {
+  height: 16px;
+}
+
+.graphContainer {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--code-bg);
+  overflow: hidden;
+  height: 600px;
+  position: relative;
+}
+
+.graphOverlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: white;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.repo-selector {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-hover);
+}
+
+.repo-selector-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.repo-selector-list {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.repo-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-h);
+}
+
+.repo-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  color: var(--text-h);
+  font-size: 11px;
+  font-family: var(--mono);
+}
