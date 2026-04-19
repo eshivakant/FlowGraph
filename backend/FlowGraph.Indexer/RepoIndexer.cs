@@ -225,17 +225,9 @@ public sealed class RepoIndexer(
             return string.Empty;
         }
 
-        var candidate = id.Trim().Replace("global::", string.Empty, StringComparison.Ordinal);
-        candidate = RemoveDelimitedSegments(candidate, '<', '>');
+        var candidate = RemoveDelimitedSegments(id.Trim(), '<', '>');
         candidate = RemoveDelimitedSegments(candidate, '(', ')');
-
-        var dotIndex = candidate.LastIndexOf('.');
-        var plusIndex = candidate.LastIndexOf('+');
-        var lastSeparatorIndex = Math.Max(dotIndex, plusIndex);
-        var segment = lastSeparatorIndex >= 0 ? candidate[(lastSeparatorIndex + 1)..] : candidate;
-
-        var lastWhitespaceIndex = segment.LastIndexOfAny([' ', '\t', '\r', '\n']);
-        return (lastWhitespaceIndex >= 0 ? segment[(lastWhitespaceIndex + 1)..] : segment).Trim();
+        return candidate;
     }
 
     private static string RemoveDelimitedSegments(string input, char open, char close)
