@@ -196,11 +196,77 @@ public sealed class RepoIndexer(
 
     private static bool IsMatch(string id, string[] patterns)
     {
+        var normalizedId = NormalizeForIncludeMatch(id);
+        if (string.IsNullOrEmpty(normalizedId))
+        {
+            return false;
+        }
+
         foreach (var p in patterns)
         {
-            if (id.Contains(p, StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.IsNullOrWhiteSpace(p))
+            {
+                continue;
+            }
+
+            if (normalizedId.Contains(p.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
+
         return false;
+    }
+
+    private static string NormalizeForIncludeMatch(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return string.Empty;
+        }
+
+        var normalized = id.Trim().Replace("global::", string.Empty, StringComparison.Ordinal);
+        normalized = RemoveDelimitedSegments(normalized, '<', '>');
+        normalized = RemoveDelimitedSegments(normalized, '(', ')');
+
+        var segmentStart = Math.Max(normalized.LastIndexOf('.'), normalized.LastIndexOf('+'));
+        var segment = segmentStart >= 0 ? normalized[(segmentStart + 1)..] : normalized;
+
+        var tokens = segment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return tokens.Length > 0 ? tokens[^1] : string.Empty;
+    }
+
+    private static string RemoveDelimitedSegments(string input, char open, char close)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+
+        var result = new System.Text.StringBuilder(input.Length);
+        var depth = 0;
+
+        foreach (var ch in input)
+        {
+            if (ch == open)
+            {
+                depth++;
+                continue;
+            }
+
+            if (ch == close && depth > 0)
+            {
+                depth--;
+                continue;
+            }
+
+            if (depth == 0)
+            {
+                result.Append(ch);
+            }
+        }
+
+        return result.ToString();
     }
 }
 
