@@ -17,16 +17,16 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
         }
 
         var boundedTake = Math.Clamp(take, 1, 200);
-        logger.LogInformation("Searching graph for query '{Query}' with take={Take}.", query, boundedTake);
+        logger.LogInformation("Searching graph with take={Take}.", boundedTake);
         try
         {
             var results = await graph.SearchAsync(query, repos, boundedTake, cancellationToken);
-            logger.LogInformation("Search returned {Count} results for query '{Query}'.", results.Count, query);
+            logger.LogInformation("Search returned {Count} results.", results.Count);
             return Ok(results);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Graph search failed for query '{Query}'.", query);
+            logger.LogError(ex, "Graph search failed.");
             throw;
         }
     }
@@ -41,16 +41,16 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
         }
 
         var boundedDepth = Math.Clamp(maxDepth, 1, 20);
-        logger.LogInformation("Tracing graph from '{Start}' with maxDepth={MaxDepth}.", start, boundedDepth);
+        logger.LogInformation("Tracing graph with maxDepth={MaxDepth}.", boundedDepth);
         try
         {
             var result = await graph.TraceAsync(start, repos, boundedDepth, cancellationToken);
-            logger.LogInformation("Trace completed for '{Start}' with {TripleCount} triples.", start, result.Triples.Count);
+            logger.LogInformation("Trace completed with {TripleCount} triples.", result.Triples.Count);
             return Ok(result);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Graph trace failed for start '{Start}'.", start);
+            logger.LogError(ex, "Graph trace failed.");
             throw;
         }
     }
@@ -65,16 +65,16 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
         }
 
         var boundedDepth = Math.Clamp(maxDepth, 1, 10);
-        logger.LogInformation("Calculating impact for '{Change}' with maxDepth={MaxDepth}.", change, boundedDepth);
+        logger.LogInformation("Calculating impact with maxDepth={MaxDepth}.", boundedDepth);
         try
         {
             var results = await graph.ImpactAsync(change, repos, boundedDepth, cancellationToken);
-            logger.LogInformation("Impact returned {Count} entities for '{Change}'.", results.Count, change);
+            logger.LogInformation("Impact returned {Count} entities.", results.Count);
             return Ok(results);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Impact analysis failed for '{Change}'.", change);
+            logger.LogError(ex, "Impact analysis failed.");
             throw;
         }
     }

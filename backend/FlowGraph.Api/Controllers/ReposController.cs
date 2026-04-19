@@ -37,7 +37,7 @@ public sealed class ReposController(
     public async Task<ActionResult<object>> Reindex(string repo, [FromBody] ReindexBody body, CancellationToken cancellationToken)
     {
         var mode = string.Equals(body.Mode, "full", StringComparison.OrdinalIgnoreCase) ? IndexMode.Full : IndexMode.Incremental;
-        logger.LogInformation("Reindex requested for repo {Repo} with mode {Mode}.", repo, mode);
+        logger.LogInformation("Reindex requested with mode {Mode}.", mode);
         try
         {
             var job = await indexer.ReindexAsync(
@@ -50,12 +50,12 @@ public sealed class ReposController(
                     IncludePatterns: body.IncludePatterns),
                 cancellationToken);
 
-            logger.LogInformation("Reindex job {JobId} created for repo {Repo}.", job.Id, repo);
+            logger.LogInformation("Reindex job {JobId} created.", job.Id);
             return Ok(new { jobId = job.Id, status = job.Status });
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to queue reindex for repo {Repo}.", repo);
+            logger.LogError(ex, "Failed to queue reindex.");
             throw;
         }
     }
@@ -63,18 +63,18 @@ public sealed class ReposController(
     [HttpDelete("{repo}")]
     public async Task<ActionResult> Delete(string repo, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Deleting repository data for {Repo}.", repo);
+        logger.LogInformation("Deleting repository data.");
         try
         {
             await graphWriter.DeleteRepoAsync(repo, cancellationToken);
             await jobStore.DeleteJobsForRepoAsync(repo, cancellationToken);
             await repoState.DeleteRepoAsync(repo, cancellationToken);
-            logger.LogInformation("Deleted repository data for {Repo}.", repo);
+            logger.LogInformation("Deleted repository data.");
             return NoContent();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to delete repository data for {Repo}.", repo);
+            logger.LogError(ex, "Failed to delete repository data.");
             throw;
         }
     }

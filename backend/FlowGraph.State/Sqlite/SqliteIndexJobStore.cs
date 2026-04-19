@@ -15,7 +15,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
 
     public async Task<IndexingJob> CreateJobAsync(string repoName, DateTimeOffset startedAt, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Creating indexing job for repo {RepoName}.", repoName);
+        logger.LogInformation("Creating indexing job.");
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -40,7 +40,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
             startedAt,
             CompletedAt: null,
             ChangedFilesCount: 0);
-        logger.LogInformation("Created indexing job {JobId} for repo {RepoName}.", id, repoName);
+        logger.LogInformation("Created indexing job {JobId}.", id);
         return job;
     }
 
@@ -174,7 +174,7 @@ public sealed class SqliteIndexJobStore(SqliteConnectionFactory connectionFactor
 
     public async Task DeleteJobsForRepoAsync(string repoName, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Deleting jobs for repo {RepoName}.", repoName);
+        logger.LogWarning("Deleting jobs for repository.");
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 

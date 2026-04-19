@@ -6,13 +6,13 @@ public sealed class NoopGraphClient(ILogger<NoopGraphClient> logger) : IGraphWri
 {
     public Task UpsertAsync(string repoName, string commitSha, IReadOnlyList<GraphTriple> triples, Func<string, Task>? progress, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Noop graph upsert invoked for repo {RepoName} commit {CommitSha} with {TripleCount} triples.", repoName, commitSha, triples.Count);
+        logger.LogWarning("Noop graph upsert invoked with {TripleCount} triples.", triples.Count);
         return Task.CompletedTask;
     }
 
     public Task DeleteRepoAsync(string repoName, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Noop graph delete invoked for repo {RepoName}.", repoName);
+        logger.LogWarning("Noop graph delete invoked.");
         return Task.CompletedTask;
     }
 
@@ -24,19 +24,19 @@ public sealed class NoopGraphClient(ILogger<NoopGraphClient> logger) : IGraphWri
 
     public Task<IReadOnlyList<GraphEntity>> SearchAsync(string query, string[]? repos, int take, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Noop graph search invoked for query {Query}.", query);
+        logger.LogWarning("Noop graph search invoked.");
         return Task.FromResult<IReadOnlyList<GraphEntity>>(Array.Empty<GraphEntity>());
     }
 
     public Task<TraceResult> TraceAsync(string startId, string[]? repos, int maxDepth, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Noop graph trace invoked for start {StartId}.", startId);
+        logger.LogWarning("Noop graph trace invoked.");
         return Task.FromResult(new TraceResult(null, Array.Empty<GraphTriple>()));
     }
 
     public Task<IReadOnlyList<GraphEntity>> ImpactAsync(string changeId, string[]? repos, int maxDepth, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Noop graph impact invoked for change {ChangeId}.", changeId);
+        logger.LogWarning("Noop graph impact invoked.");
         return Task.FromResult<IReadOnlyList<GraphEntity>>(Array.Empty<GraphEntity>());
     }
 }

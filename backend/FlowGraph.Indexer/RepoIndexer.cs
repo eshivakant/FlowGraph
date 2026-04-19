@@ -19,7 +19,7 @@ public sealed class RepoIndexer(
 {
     public async Task<IndexingJob> ReindexAsync(ReindexRequest request, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Starting reindex request for repo {RepoName} in {Mode} mode.", request.RepoName, request.Mode);
+        logger.LogInformation("Starting reindex request in {Mode} mode.", request.Mode);
         await repoState.InitializeAsync(cancellationToken);
         await jobs.InitializeAsync(cancellationToken);
 
@@ -36,11 +36,11 @@ public sealed class RepoIndexer(
             }
             catch (Exception ex)
             {
-                logger.LogCritical(ex, "Background indexing task failed for repo {RepoName}.", request.RepoName);
+                logger.LogCritical(ex, "Background indexing task failed.");
             }
         });
 
-        logger.LogInformation("Reindex job {JobId} queued for repo {RepoName}.", job.Id, request.RepoName);
+        logger.LogInformation("Reindex job {JobId} queued.", job.Id);
         return job;
     }
 
@@ -48,7 +48,7 @@ public sealed class RepoIndexer(
     {
         try
         {
-            logger.LogInformation("Running indexing pipeline for repo {RepoName}, job {JobId}.", request.RepoName, job.Id);
+            logger.LogInformation("Running indexing pipeline for job {JobId}.", job.Id);
             await TryUpdateProgress(job.Id, "Checking out repository...", cancellationToken);
             var checkout = await git.EnsureRepoAsync(
                 request.RepoName,
@@ -71,20 +71,20 @@ public sealed class RepoIndexer(
             IReadOnlyList<string> changedFiles;
             if (fullScan)
             {
-                logger.LogInformation("Using full scan for repo {RepoName}, job {JobId}.", request.RepoName, job.Id);
+                logger.LogInformation("Using full scan for job {JobId}.", job.Id);
                 changedFiles = Directory.GetFiles(checkout.LocalPath, "*.cs", SearchOption.AllDirectories)
                     .Select(p => Path.GetRelativePath(checkout.LocalPath, p))
                     .ToArray();
             }
             else
             {
-                logger.LogInformation("Using incremental scan for repo {RepoName}, job {JobId}.", request.RepoName, job.Id);
+                logger.LogInformation("Using incremental scan for job {JobId}.", job.Id);
                 changedFiles = await git.GetChangedFilesAsync(checkout.LocalPath, lastCommit!, head, cancellationToken);
             }
 
             if (changedFiles.Count == 0)
             {
-                logger.LogInformation("No changed files detected for repo {RepoName}, job {JobId}.", request.RepoName, job.Id);
+                logger.LogInformation("No changed files detected for job {JobId}.", job.Id);
                 await TryUpdateProgress(job.Id, "No changes detected. Finishing early.", cancellationToken);
                 await CompleteJobAsync(job, head, 0, request, cancellationToken);
                 return;
@@ -101,7 +101,7 @@ public sealed class RepoIndexer(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to write changed files artifact for repo {RepoName}, job {JobId}.", request.RepoName, job.Id);
+                logger.LogWarning(ex, "Failed to write changed files artifact for job {JobId}.", job.Id);
             }
 
             var triples = await roslyn.IngestAsync(
@@ -132,11 +132,11 @@ public sealed class RepoIndexer(
                 cancellationToken);
 
             await CompleteJobAsync(job, head, changedFiles.Count, request, cancellationToken);
-            logger.LogInformation("Indexing pipeline completed for repo {RepoName}, job {JobId}.", request.RepoName, job.Id);
+            logger.LogInformation("Indexing pipeline completed for job {JobId}.", job.Id);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Indexing pipeline failed for repo {RepoName}, job {JobId}.", request.RepoName, job.Id);
+            logger.LogError(ex, "Indexing pipeline failed for job {JobId}.", job.Id);
             await FailJobAsync(job, ex, request, cancellationToken);
         }
     }
@@ -146,15 +146,15 @@ public sealed class RepoIndexer(
         var completedAt = DateTimeOffset.UtcNow;
         try
         {
-            logger.LogInformation("Completing job {JobId} for repo {RepoName}.", job.Id, req.RepoName);
+            logger.LogInformation("Completing job {JobId}.", job.Id);
             await TryUpdateProgress(job.Id, "Finalizing job and updating repo state...", ct);
             await jobs.CompleteJobAsync(job.Id, completedAt, count, "COMPLETED", ct);
             await repoState.UpsertRepoAsync(new RepoState(req.RepoName, req.RemoteUrl, req.Branch, req.SolutionPath, commit, completedAt, "READY", req.IncludePatterns), ct);
-            logger.LogInformation("Completed job {JobId} for repo {RepoName}.", job.Id, req.RepoName);
+            logger.LogInformation("Completed job {JobId}.", job.Id);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to complete job {JobId} for repo {RepoName}.", job.Id, req.RepoName);
+            logger.LogError(ex, "Failed to complete job {JobId}.", job.Id);
         }
     }
 
@@ -164,7 +164,7 @@ public sealed class RepoIndexer(
         try
         {
             await jobs.FailJobAsync(job.Id, completedAt, ex.Message, ct);
-            logger.LogInformation("Marked job {JobId} as failed for repo {RepoName}.", job.Id, req.RepoName);
+            logger.LogInformation("Marked job {JobId} as failed.", job.Id);
         }
         catch (Exception sex)
         {
@@ -174,11 +174,11 @@ public sealed class RepoIndexer(
         try
         {
             await repoState.UpsertRepoAsync(new RepoState(req.RepoName, req.RemoteUrl, req.Branch, req.SolutionPath, null, null, "FAILED", req.IncludePatterns), ct);
-            logger.LogInformation("Updated repo {RepoName} state to FAILED.", req.RepoName);
+            logger.LogInformation("Updated repository state to FAILED.");
         }
         catch (Exception sex)
         {
-            logger.LogError(sex, "Failed to update repo state to FAILED for {RepoName}.", req.RepoName);
+            logger.LogError(sex, "Failed to update repository state to FAILED.");
         }
     }
 

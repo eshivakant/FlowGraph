@@ -50,7 +50,7 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
 
     public async Task<RepoState?> GetRepoAsync(string repoName, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Getting repository state for {RepoName}.", repoName);
+        logger.LogInformation("Getting repository state.");
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -66,7 +66,7 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
-            logger.LogWarning("Repository state not found for {RepoName}.", repoName);
+            logger.LogWarning("Repository state not found.");
             return null;
         }
 
@@ -81,13 +81,13 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         var includes = includesJson is null ? null : JsonSerializer.Deserialize<string[]>(includesJson);
 
         var state = new RepoState(repo, remoteUrl, branch, solPath, lastCommit, lastAt, status, includes);
-        logger.LogInformation("Loaded repository state for {RepoName} with status {Status}.", repoName, status);
+        logger.LogInformation("Loaded repository state with status {Status}.", status);
         return state;
     }
 
     public async Task UpsertRepoAsync(RepoState repo, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Upserting repository state for {RepoName} with status {Status}.", repo.RepoName, repo.Status);
+        logger.LogInformation("Upserting repository state with status {Status}.", repo.Status);
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -114,12 +114,12 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         cmd.Parameters.AddWithValue("$include_patterns", repo.IncludePatterns is null ? DBNull.Value : JsonSerializer.Serialize(repo.IncludePatterns));
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);
-        logger.LogInformation("Upserted repository state for {RepoName}.", repo.RepoName);
+        logger.LogInformation("Upserted repository state.");
     }
     
     public async Task DeleteRepoAsync(string repoName, CancellationToken cancellationToken)
     {
-        logger.LogWarning("Deleting repository state for {RepoName}.", repoName);
+        logger.LogWarning("Deleting repository state.");
         await using var conn = connectionFactory.Create();
         await conn.OpenAsync(cancellationToken);
 
@@ -127,6 +127,6 @@ public sealed class SqliteRepoStateStore(SqliteConnectionFactory connectionFacto
         cmd.CommandText = "DELETE FROM repos WHERE repo_name = $repo";
         cmd.Parameters.AddWithValue("$repo", repoName);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
-        logger.LogWarning("Deleted repository state for {RepoName}.", repoName);
+        logger.LogWarning("Deleted repository state.");
     }
 }

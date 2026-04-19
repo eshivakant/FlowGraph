@@ -14,7 +14,7 @@ public sealed class DeterministicRoslynIngestor(ILogger<DeterministicRoslynInges
 {
     public async Task<IReadOnlyList<GraphTriple>> IngestAsync(RoslynIngestionRequest request, Func<string, Task>? progress, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Starting Roslyn ingestion for repo {RepoName} at commit {CommitSha}.", request.RepoName, request.CommitSha);
+        logger.LogInformation("Starting Roslyn ingestion.");
         using var workspace = MsBuildWorkspaceLoader.CreateWorkspace();
 
         workspace.WorkspaceFailed += (s, e) =>
@@ -25,7 +25,7 @@ public sealed class DeterministicRoslynIngestor(ILogger<DeterministicRoslynInges
         var solutionPath = ResolveSolutionPath(request);
         if (solutionPath is null)
         {
-            logger.LogWarning("No solution file resolved for repo {RepoName}.", request.RepoName);
+            logger.LogWarning("No solution file resolved.");
             return Array.Empty<GraphTriple>();
         }
 
@@ -54,7 +54,7 @@ public sealed class DeterministicRoslynIngestor(ILogger<DeterministicRoslynInges
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to open project {ProjectPath} from .slnx.", p);
+                        logger.LogWarning(ex, "Failed to open a project from .slnx.");
                     }
                 }
             }
@@ -164,7 +164,7 @@ public sealed class DeterministicRoslynIngestor(ILogger<DeterministicRoslynInges
         }
 
         if (progress != null) await progress($"Roslyn ingestion complete. Found {allTriples.Count} triples across {processedFiles} files.");
-        logger.LogInformation("Roslyn ingestion completed for repo {RepoName}. Processed files: {ProcessedFiles}, triples: {TripleCount}.", request.RepoName, processedFiles, allTriples.Count);
+        logger.LogInformation("Roslyn ingestion completed. Processed files: {ProcessedFiles}, triples: {TripleCount}.", processedFiles, allTriples.Count);
         return allTriples.ToList();
     }
 
