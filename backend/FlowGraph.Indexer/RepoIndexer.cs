@@ -229,7 +229,9 @@ public sealed class RepoIndexer(
         normalized = RemoveDelimitedSegments(normalized, '<', '>');
         normalized = RemoveDelimitedSegments(normalized, '(', ')');
 
-        var segmentStart = Math.Max(normalized.LastIndexOf('.'), normalized.LastIndexOf('+'));
+        var dotIndex = normalized.LastIndexOf('.');
+        var plusIndex = normalized.LastIndexOf('+');
+        var segmentStart = Math.Max(dotIndex, plusIndex);
         var segment = segmentStart >= 0 ? normalized[(segmentStart + 1)..] : normalized;
 
         var tokens = segment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -254,9 +256,12 @@ public sealed class RepoIndexer(
                 continue;
             }
 
-            if (ch == close && depth > 0)
+            if (ch == close)
             {
-                depth--;
+                if (depth > 0)
+                {
+                    depth--;
+                }
                 continue;
             }
 
