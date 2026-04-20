@@ -188,7 +188,7 @@ function ReposPage({ connection }: { connection: string }) {
     setLocalLoading(true)
     const patterns = includes.split(',').map(s => s.trim()).filter(x => !!x);
     try {
-      await fetch(withConnection(`/repos/${encodeURIComponent(repoName)}/reindex`, connection), {
+      await fetch(`/repos/${encodeURIComponent(repoName)}/reindex`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

@@ -19,7 +19,7 @@ public sealed class GraphConnectionRouter(
 
     public string ResolveConnection(string? requestedConnection)
     {
-        if (!string.IsNullOrWhiteSpace(requestedConnection) && _writers.ContainsKey(requestedConnection))
+        if (!string.IsNullOrWhiteSpace(requestedConnection) && _writers.TryGetValue(requestedConnection, out _))
         {
             return requestedConnection;
         }
