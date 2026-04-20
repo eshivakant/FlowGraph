@@ -197,7 +197,7 @@ function ReposPage({ connection }: { connection: string }) {
           mode,
           solutionPath: solutionPath.trim() ? solutionPath.trim() : null,
           includePatterns: patterns,
-          graphConnection: connection,
+          GraphConnection: connection,
         }),
       })
       setRefreshKey((k) => k + 1)
