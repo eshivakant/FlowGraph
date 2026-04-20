@@ -12,5 +12,6 @@ public sealed record ReindexRequest(
     string Branch,
     IndexMode Mode,
     string? SolutionPath,
-    string[]? IncludePatterns = null
+    string[]? IncludePatterns = null,
+    string? GraphConnection = null
 );

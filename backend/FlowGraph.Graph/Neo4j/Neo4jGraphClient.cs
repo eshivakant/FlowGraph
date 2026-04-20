@@ -7,12 +7,16 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
 {
     private readonly IDriver _driver;
     private readonly ILogger<Neo4jGraphClient> _logger;
+    private readonly string? _database;
+    private readonly string _connectionName;
 
-    public Neo4jGraphClient(string uri, string username, string password, ILogger<Neo4jGraphClient> logger)
+    public Neo4jGraphClient(string connectionName, string uri, string username, string password, string? database, ILogger<Neo4jGraphClient> logger)
     {
+        _connectionName = connectionName;
+        _database = string.IsNullOrWhiteSpace(database) ? null : database.Trim();
         _logger = logger;
         _driver = GraphDatabase.Driver(uri, AuthTokens.Basic(username, password));
-        _logger.LogInformation("Neo4j graph client initialized.");
+        _logger.LogInformation("Neo4j graph client initialized for connection '{ConnectionName}' (database: {Database}).", _connectionName, _database ?? "(default)");
     }
 
     public async Task UpsertAsync(string repoName, string commitSha, IReadOnlyList<GraphTriple> triples, Func<string, Task>? progress, CancellationToken cancellationToken)
@@ -47,7 +51,7 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
 
             foreach (var batch in batches)
             {
-                await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
+                await using var session = CreateSession(AccessMode.Write);
                 await session.ExecuteWriteAsync(async tx =>
                 {
                     var cypher = $@"
@@ -74,7 +78,7 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
     public async Task DeleteRepoAsync(string repoName, CancellationToken cancellationToken)
     {
         _logger.LogWarning("Deleting repository graph data.");
-        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
+        await using var session = CreateSession(AccessMode.Write);
 
         bool hasMore = true;
         while (hasMore && !cancellationToken.IsCancellationRequested)
@@ -114,7 +118,7 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
     public async Task WipeAsync(CancellationToken cancellationToken)
     {
         _logger.LogWarning("Wiping all graph data.");
-        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
+        await using var session = CreateSession(AccessMode.Write);
 
         bool hasMore = true;
         while (hasMore && !cancellationToken.IsCancellationRequested)
@@ -153,7 +157,7 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
     public async Task<IReadOnlyList<GraphEntity>> SearchAsync(string query, string[]? repos, int take, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Running graph search with take={Take}.", take);
-        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
+        await using var session = CreateSession(AccessMode.Read);
         var repoList = (repos == null || repos.Length == 0) ? null : repos;
         var cursor = await session.RunAsync(
             """
@@ -184,7 +188,7 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
     public async Task<TraceResult> TraceAsync(string startId, string[]? repos, int maxDepth, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Running graph trace with depth {MaxDepth}.", maxDepth);
-        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
+        await using var session = CreateSession(AccessMode.Read);
 
         var nodeCursor = await session.RunAsync(
             "MATCH (s:Entity) WHERE toLower(s.id) = toLower($start) RETURN s.kind AS kind, s.id AS id, properties(s) AS props",
@@ -241,7 +245,7 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
     public async Task<IReadOnlyList<GraphEntity>> ImpactAsync(string changeId, string[]? repos, int maxDepth, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Running impact analysis with depth {MaxDepth}.", maxDepth);
-        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
+        await using var session = CreateSession(AccessMode.Read);
         var repoList = (repos == null || repos.Length == 0) ? null : repos;
         var cursor = await session.RunAsync(
             $$"""
@@ -269,8 +273,20 @@ public sealed class Neo4jGraphClient : IGraphWriter, IGraphQueryService, IAsyncD
 
     public async ValueTask DisposeAsync()
     {
-        _logger.LogInformation("Disposing Neo4j graph client.");
+        _logger.LogInformation("Disposing Neo4j graph client for connection '{ConnectionName}'.", _connectionName);
         await _driver.DisposeAsync();
+    }
+
+    private IAsyncSession CreateSession(AccessMode mode)
+    {
+        return _driver.AsyncSession(options =>
+        {
+            options.WithDefaultAccessMode(mode);
+            if (!string.IsNullOrWhiteSpace(_database))
+            {
+                options.WithDatabase(_database);
+            }
+        });
     }
 
     private static string RelationToCypher(GraphRelation relation) =>

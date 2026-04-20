@@ -79,26 +79,72 @@ builder.Services.AddSingleton<IBlobStore>(sp =>
 builder.Services.AddSingleton<IGitService, GitCliService>();
 builder.Services.AddSingleton<IRoslynIngestor, DeterministicRoslynIngestor>();
 
-var neo4jUri = builder.Configuration["FlowGraph:Neo4j:Uri"];
-var neo4jUser = builder.Configuration["FlowGraph:Neo4j:Username"];
-var neo4jPass = builder.Configuration["FlowGraph:Neo4j:Password"];
+var configuredGraphConnections = new Dictionary<string, GraphConnectionOptions>(StringComparer.OrdinalIgnoreCase);
 
-if (!string.IsNullOrWhiteSpace(neo4jUri) && !string.IsNullOrWhiteSpace(neo4jUser) && !string.IsNullOrWhiteSpace(neo4jPass))
+var neo4jConnectionsSection = builder.Configuration.GetSection("FlowGraph:Neo4jConnections");
+foreach (var section in neo4jConnectionsSection.GetChildren())
 {
-    builder.Services.AddSingleton<Neo4jGraphClient>(sp =>
-        new Neo4jGraphClient(
-            neo4jUri!,
-            neo4jUser!,
-            neo4jPass!,
-            sp.GetRequiredService<ILogger<Neo4jGraphClient>>()));
-    builder.Services.AddSingleton<IGraphWriter>(sp => sp.GetRequiredService<Neo4jGraphClient>());
-    builder.Services.AddSingleton<IGraphQueryService>(sp => sp.GetRequiredService<Neo4jGraphClient>());
+    var name = section.Key;
+    var uri = section["Uri"];
+    var username = section["Username"];
+    var password = section["Password"];
+    var database = section["Database"];
+
+    if (!string.IsNullOrWhiteSpace(name) &&
+        !string.IsNullOrWhiteSpace(uri) &&
+        !string.IsNullOrWhiteSpace(username) &&
+        !string.IsNullOrWhiteSpace(password))
+    {
+        configuredGraphConnections[name] = new GraphConnectionOptions(name, uri!, username!, password!, database);
+    }
 }
-else
+
+if (configuredGraphConnections.Count == 0)
 {
-    builder.Services.AddSingleton<IGraphWriter, NoopGraphClient>();
-    builder.Services.AddSingleton<IGraphQueryService, NoopGraphClient>();
+    var legacyUri = builder.Configuration["FlowGraph:Neo4j:Uri"];
+    var legacyUser = builder.Configuration["FlowGraph:Neo4j:Username"];
+    var legacyPass = builder.Configuration["FlowGraph:Neo4j:Password"];
+    var legacyDb = builder.Configuration["FlowGraph:Neo4j:Database"];
+    if (!string.IsNullOrWhiteSpace(legacyUri) &&
+        !string.IsNullOrWhiteSpace(legacyUser) &&
+        !string.IsNullOrWhiteSpace(legacyPass))
+    {
+        configuredGraphConnections["Default"] = new GraphConnectionOptions("Default", legacyUri!, legacyUser!, legacyPass!, legacyDb);
+    }
 }
+
+builder.Services.AddSingleton<IGraphConnectionRouter>(sp =>
+{
+    if (configuredGraphConnections.Count == 0)
+    {
+        var noop = new NoopGraphClient(sp.GetRequiredService<ILogger<NoopGraphClient>>());
+        var noopMap = new Dictionary<string, IGraphWriter>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Default"] = noop,
+        };
+        return new GraphConnectionRouter(noopMap, new Dictionary<string, IGraphQueryService>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Default"] = noop,
+        }, "Default");
+    }
+
+    var logger = sp.GetRequiredService<ILogger<Neo4jGraphClient>>();
+    var writers = new Dictionary<string, IGraphWriter>(StringComparer.OrdinalIgnoreCase);
+    var queries = new Dictionary<string, IGraphQueryService>(StringComparer.OrdinalIgnoreCase);
+    foreach (var entry in configuredGraphConnections)
+    {
+        var options = entry.Value;
+        var client = new Neo4jGraphClient(options.Name, options.Uri, options.Username, options.Password, options.Database, logger);
+        writers[options.Name] = client;
+        queries[options.Name] = client;
+    }
+
+    var defaultConnection = configuredGraphConnections.Keys.Contains("Default", StringComparer.OrdinalIgnoreCase)
+        ? "Default"
+        : configuredGraphConnections.Keys.First();
+
+    return new GraphConnectionRouter(writers, queries, defaultConnection);
+});
 
 var checkoutRootRaw = builder.Configuration["FlowGraph:CheckoutRoot"] ?? Path.Combine(dataRoot, "repos");
 var checkoutRoot = ResolvePath(workspaceRoot, checkoutRootRaw);

@@ -5,10 +5,16 @@ namespace FlowGraph.Api.Controllers;
 
 [ApiController]
 [Route("graph")]
-public sealed class GraphController(IGraphQueryService graph, ILogger<GraphController> logger) : ControllerBase
+public sealed class GraphController(IGraphConnectionRouter graphRouter, ILogger<GraphController> logger) : ControllerBase
 {
+    [HttpGet("connections")]
+    public ActionResult<IReadOnlyList<GraphConnectionInfo>> Connections()
+    {
+        return Ok(graphRouter.ListConnections());
+    }
+
     [HttpGet("search")]
-    public async Task<ActionResult<IReadOnlyList<GraphEntity>>> Search([FromQuery] string? query, [FromQuery] string[]? repos, [FromQuery] int take = 50, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<IReadOnlyList<GraphEntity>>> Search([FromQuery] string? query, [FromQuery] string[]? repos, [FromQuery] string? connection, [FromQuery] int take = 50, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -16,6 +22,7 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
             return Ok(Array.Empty<GraphEntity>());
         }
 
+        var graph = graphRouter.GetQueryService(connection);
         var boundedTake = Math.Clamp(take, 1, 200);
         logger.LogInformation("Searching graph with take={Take}.", boundedTake);
         try
@@ -32,7 +39,7 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
     }
 
     [HttpGet("trace")]
-    public async Task<ActionResult<TraceResult>> Trace([FromQuery] string? start, [FromQuery] string[]? repos, [FromQuery] int maxDepth = 5, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<TraceResult>> Trace([FromQuery] string? start, [FromQuery] string[]? repos, [FromQuery] string? connection, [FromQuery] int maxDepth = 5, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(start))
         {
@@ -40,6 +47,7 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
             return Ok(new TraceResult(null, Array.Empty<GraphTriple>()));
         }
 
+        var graph = graphRouter.GetQueryService(connection);
         var boundedDepth = Math.Clamp(maxDepth, 1, 20);
         logger.LogInformation("Tracing graph with maxDepth={MaxDepth}.", boundedDepth);
         try
@@ -56,7 +64,7 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
     }
 
     [HttpGet("impact")]
-    public async Task<ActionResult<IReadOnlyList<GraphEntity>>> Impact([FromQuery] string? change, [FromQuery] string[]? repos, [FromQuery] int maxDepth = 3, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<IReadOnlyList<GraphEntity>>> Impact([FromQuery] string? change, [FromQuery] string[]? repos, [FromQuery] string? connection, [FromQuery] int maxDepth = 3, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(change))
         {
@@ -64,6 +72,7 @@ public sealed class GraphController(IGraphQueryService graph, ILogger<GraphContr
             return Ok(Array.Empty<GraphEntity>());
         }
 
+        var graph = graphRouter.GetQueryService(connection);
         var boundedDepth = Math.Clamp(maxDepth, 1, 10);
         logger.LogInformation("Calculating impact with maxDepth={MaxDepth}.", boundedDepth);
         try

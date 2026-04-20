@@ -5,6 +5,10 @@ import './App.css'
 function App() {
   const [tab, setTab] = useState<'repos' | 'search' | 'trace' | 'impact' | 'jobs'>('repos')
   const [traceId, setTraceId] = useState('')
+  const [selectedConnection, setSelectedConnection] = useState('')
+  const { data: graphConnections } = useJson<GraphConnectionInfo[]>('/graph/connections', [])
+  const defaultConnection = graphConnections?.find(c => c.isDefault)?.name ?? graphConnections?.[0]?.name ?? 'Default'
+  const activeConnection = selectedConnection || defaultConnection
 
   return (
     <>
@@ -13,21 +17,31 @@ function App() {
           <div className="title">FlowGraph</div>
           <div className="subtitle">System interaction graph</div>
         </div>
-        <nav className="tabs">
-          <Tab label="Repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
-          <Tab label="Jobs" active={tab === 'jobs'} onClick={() => setTab('jobs')} />
-          <Tab label="Search" active={tab === 'search'} onClick={() => setTab('search')} />
-          <Tab label="Trace" active={tab === 'trace'} onClick={() => setTab('trace')} />
-          <Tab label="Impact" active={tab === 'impact'} onClick={() => setTab('impact')} />
-        </nav>
+        <div className="headerControls">
+          <nav className="tabs">
+            <Tab label="Repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
+            <Tab label="Jobs" active={tab === 'jobs'} onClick={() => setTab('jobs')} />
+            <Tab label="Search" active={tab === 'search'} onClick={() => setTab('search')} />
+            <Tab label="Trace" active={tab === 'trace'} onClick={() => setTab('trace')} />
+            <Tab label="Impact" active={tab === 'impact'} onClick={() => setTab('impact')} />
+          </nav>
+          <label className="connectionSelect">
+            Graph
+            <select value={activeConnection} onChange={(e) => setSelectedConnection(e.target.value)}>
+              {graphConnections?.map(c => (
+                <option key={c.name} value={c.name}>{c.name}</option>
+              )) ?? <option value={activeConnection}>{activeConnection}</option>}
+            </select>
+          </label>
+        </div>
       </header>
 
       <main className="main">
-        {tab === 'repos' && <ReposPage />}
+        {tab === 'repos' && <ReposPage connection={activeConnection} />}
         {tab === 'jobs' && <JobsPage />}
-        {tab === 'search' && <SearchPage onTrace={(id) => { setTraceId(id); setTab('trace'); }} />}
-        {tab === 'trace' && <TracePage initialId={traceId} />}
-        {tab === 'impact' && <ImpactPage />}
+        {tab === 'search' && <SearchPage connection={activeConnection} onTrace={(id) => { setTraceId(id); setTab('trace'); }} />}
+        {tab === 'trace' && <TracePage connection={activeConnection} initialId={traceId} />}
+        {tab === 'impact' && <ImpactPage connection={activeConnection} />}
       </main>
     </>
   )
@@ -51,6 +65,7 @@ type RepoState = {
   lastIndexedCommit: string | null
   lastIndexedAt: string | null
   status: string
+  includePatterns?: string[]
 }
 
 type IndexingJob = {
@@ -65,6 +80,12 @@ type IndexingJob = {
 
 type GraphEntity = { kind: string; id: string; properties: Record<string, unknown> }
 type GraphTriple = { source: GraphEntity; relation: number; target: GraphEntity; properties: Record<string, unknown> }
+type GraphConnectionInfo = { name: string; isDefault: boolean }
+
+function withConnection(path: string, connection: string) {
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}connection=${encodeURIComponent(connection)}`
+}
 
 function useJson<T>(url: string, deps: unknown[] = [], enabled = true) {
   const [data, setData] = useState<T | null>(null)
@@ -149,7 +170,7 @@ function RepoSelector({ selected, onChange }: { selected: string[], onChange: (r
   );
 }
 
-function ReposPage() {
+function ReposPage({ connection }: { connection: string }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const { data, error, loading } = useJson<RepoState[]>('/repos', [refreshKey])
 
@@ -167,7 +188,7 @@ function ReposPage() {
     setLocalLoading(true)
     const patterns = includes.split(',').map(s => s.trim()).filter(x => !!x);
     try {
-      await fetch(`/repos/${encodeURIComponent(repoName)}/reindex`, {
+      await fetch(withConnection(`/repos/${encodeURIComponent(repoName)}/reindex`, connection), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -176,6 +197,7 @@ function ReposPage() {
           mode,
           solutionPath: solutionPath.trim() ? solutionPath.trim() : null,
           includePatterns: patterns,
+          graphConnection: connection,
         }),
       })
       setRefreshKey((k) => k + 1)
@@ -203,7 +225,7 @@ function ReposPage() {
     
     setLocalLoading(true)
     try {
-      const r = await fetch(`/repos/${encodeURIComponent(name)}`, { method: 'DELETE' })
+      const r = await fetch(withConnection(`/repos/${encodeURIComponent(name)}`, connection), { method: 'DELETE' })
       if (!r.ok) throw new Error(await r.text())
       setRefreshKey(k => k + 1)
     } catch (e: any) {
@@ -330,14 +352,14 @@ function JobsPage() {
   )
 }
 
-function SearchPage({ onTrace }: { onTrace: (id: string) => void }) {
+function SearchPage({ connection, onTrace }: { connection: string; onTrace: (id: string) => void }) {
   const [q, setQ] = useState('')
   const [repos, setRepos] = useState<string[]>([])
   
   const queryParams = new URLSearchParams({ query: q });
   repos.forEach(r => queryParams.append('repos', r));
   
-  const { data, error, loading } = useJson<GraphEntity[]>(`/graph/search?${queryParams.toString()}`, [q, repos], !!q)
+  const { data, error, loading } = useJson<GraphEntity[]>(withConnection(`/graph/search?${queryParams.toString()}`, connection), [q, repos, connection], !!q)
 
   return (
     <section className="panel">
@@ -377,7 +399,7 @@ function SearchPage({ onTrace }: { onTrace: (id: string) => void }) {
 
 type TraceResult = { startNode: GraphEntity | null; triples: GraphTriple[] }
 
-function TracePage({ initialId }: { initialId: string }) {
+function TracePage({ connection, initialId }: { connection: string; initialId: string }) {
   const [startId, setStartId] = useState(initialId)
   const [depth, setDepth] = useState(3)
   const [repos, setRepos] = useState<string[]>([])
@@ -386,7 +408,7 @@ function TracePage({ initialId }: { initialId: string }) {
   const queryParams = new URLSearchParams({ start: startId, maxDepth: String(depth) });
   repos.forEach(r => queryParams.append('repos', r));
 
-  const { data, error, loading } = useJson<TraceResult>(`/graph/trace?${queryParams.toString()}`, [startId, depth, repos], !!startId)
+  const { data, error, loading } = useJson<TraceResult>(withConnection(`/graph/trace?${queryParams.toString()}`, connection), [startId, depth, repos, connection], !!startId)
 
   useEffect(() => {
     if (initialId) setStartId(initialId);
@@ -537,7 +559,7 @@ function GraphVisualization({ triples, startNode, onNodeClick }: { triples: Grap
   )
 }
 
-function ImpactPage() {
+function ImpactPage({ connection }: { connection: string }) {
   const [change, setChange] = useState('')
   const [depth, setDepth] = useState(3)
   const [repos, setRepos] = useState<string[]>([])
@@ -545,7 +567,7 @@ function ImpactPage() {
   const queryParams = new URLSearchParams({ change: change, maxDepth: String(depth) });
   repos.forEach(r => queryParams.append('repos', r));
   
-  const { data, error, loading } = useJson<GraphEntity[]>(`/graph/impact?${queryParams.toString()}`, [change, depth, repos], !!change)
+  const { data, error, loading } = useJson<GraphEntity[]>(withConnection(`/graph/impact?${queryParams.toString()}`, connection), [change, depth, repos, connection], !!change)
 
   return (
     <section className="panel">

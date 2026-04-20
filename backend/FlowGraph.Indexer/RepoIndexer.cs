@@ -10,7 +10,7 @@ namespace FlowGraph.Indexer;
 public sealed class RepoIndexer(
     IGitService git,
     IRoslynIngestor roslyn,
-    IGraphWriter graphWriter,
+    IGraphConnectionRouter graphRouter,
     IRepoStateStore repoState,
     IIndexJobStore jobs,
     IBlobStore blobs,
@@ -124,6 +124,7 @@ public sealed class RepoIndexer(
 
             await TryUpdateProgress(job.Id, $"Writing {triples.Count} triples to graph database...", cancellationToken);
 
+            var graphWriter = graphRouter.GetWriter(request.GraphConnection);
             await graphWriter.UpsertAsync(
                 request.RepoName,
                 head,

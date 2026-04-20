@@ -11,7 +11,7 @@ public sealed class ReposController(
     IRepoIndexer indexer, 
     IRepoStateStore repoState,
     IIndexJobStore jobStore,
-    IGraphWriter graphWriter,
+    IGraphConnectionRouter graphRouter,
     ILogger<ReposController> logger) : ControllerBase
 {
     [HttpGet]
@@ -31,7 +31,7 @@ public sealed class ReposController(
         }
     }
 
-    public sealed record ReindexBody(string RemoteUrl, string? Branch, string? Mode, string? SolutionPath, string[]? IncludePatterns);
+    public sealed record ReindexBody(string RemoteUrl, string? Branch, string? Mode, string? SolutionPath, string[]? IncludePatterns, string? GraphConnection);
 
     [HttpPost("{repo}/reindex")]
     public async Task<ActionResult<object>> Reindex(string repo, [FromBody] ReindexBody body, CancellationToken cancellationToken)
@@ -47,7 +47,8 @@ public sealed class ReposController(
                     Branch: body.Branch ?? "main",
                     Mode: mode,
                     SolutionPath: body.SolutionPath,
-                    IncludePatterns: body.IncludePatterns),
+                    IncludePatterns: body.IncludePatterns,
+                    GraphConnection: body.GraphConnection),
                 cancellationToken);
 
             logger.LogInformation("Reindex job {JobId} created.", job.Id);
@@ -61,12 +62,12 @@ public sealed class ReposController(
     }
 
     [HttpDelete("{repo}")]
-    public async Task<ActionResult> Delete(string repo, CancellationToken cancellationToken)
+    public async Task<ActionResult> Delete(string repo, [FromQuery] string? connection, CancellationToken cancellationToken)
     {
         logger.LogInformation("Deleting repository data.");
         try
         {
-            await graphWriter.DeleteRepoAsync(repo, cancellationToken);
+            await graphRouter.GetWriter(connection).DeleteRepoAsync(repo, cancellationToken);
             await jobStore.DeleteJobsForRepoAsync(repo, cancellationToken);
             await repoState.DeleteRepoAsync(repo, cancellationToken);
             logger.LogInformation("Deleted repository data.");
@@ -80,12 +81,12 @@ public sealed class ReposController(
     }
 
     [HttpPost("wipe-graph")]
-    public async Task<ActionResult> WipeGraph(CancellationToken cancellationToken)
+    public async Task<ActionResult> WipeGraph([FromQuery] string? connection, CancellationToken cancellationToken)
     {
         logger.LogWarning("Graph wipe requested.");
         try
         {
-            await graphWriter.WipeAsync(cancellationToken);
+            await graphRouter.GetWriter(connection).WipeAsync(cancellationToken);
             logger.LogWarning("Graph wipe completed.");
             return Ok();
         }
