@@ -33,3 +33,15 @@ public interface IGraphQueryService
     Task<TraceResult> TraceAsync(string startId, string[]? repos, int maxDepth, CancellationToken cancellationToken);
     Task<IReadOnlyList<GraphEntity>> ImpactAsync(string changeId, string[]? repos, int maxDepth, CancellationToken cancellationToken);
 }
+
+public sealed record GraphConnectionOptions(string Name, string Uri, string Username, string Password, string? Database = null);
+
+public sealed record GraphConnectionInfo(string Name, bool IsDefault);
+
+public interface IGraphConnectionRouter
+{
+    IReadOnlyList<GraphConnectionInfo> ListConnections();
+    string ResolveConnection(string? requestedConnection);
+    IGraphWriter GetWriter(string? requestedConnection);
+    IGraphQueryService GetQueryService(string? requestedConnection);
+}
