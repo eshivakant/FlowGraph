@@ -36,8 +36,8 @@ public sealed class GraphConnectionRouter(
     public async ValueTask DisposeAsync()
     {
         var disposables = _writers.Values
-            .Concat(_queries.Values)
             .OfType<IAsyncDisposable>()
+            .Concat(_queries.Values.OfType<IAsyncDisposable>())
             .Distinct()
             .ToArray();
 
